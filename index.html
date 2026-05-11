@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Biblioteca Popular - SIGB Móvil</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+            background: #f5f1eb;
+            padding: 16px;
+            padding-bottom: 80px;
+        }
+        .header {
+            background: #2c5f2d;
+            color: white;
+            padding: 20px;
+            border-radius: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .header p {
+            font-size: 0.8rem;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .card h2 {
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+            color: #2c5f2d;
+        }
+        button {
+            background: #2c5f2d;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 40px;
+            font-size: 1rem;
+            font-weight: 500;
+            width: 100%;
+            margin-top: 8px;
+            cursor: pointer;
+        }
+        button.secondary {
+            background: #d9c5a7;
+            color: #2c5f2d;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 40px;
+            font-size: 1rem;
+        }
+        .menu {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 12px;
+            border-top: 1px solid #eee;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        }
+        .menu button {
+            width: auto;
+            padding: 10px 16px;
+            background: #f0f0f0;
+            color: #2c5f2d;
+            margin-top: 0;
+        }
+        .hidden {
+            display: none;
+        }
+        .prestamo-item {
+            background: #f9f6ef;
+            padding: 12px;
+            border-radius: 16px;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>📚 Mi Biblioteca</h1>
+    <p>SIGB para celular - Funciona sin internet</p>
+</div>
+
+<!-- Sección de PRÉSTAMOS (la más importante) -->
+<div id="seccionPrestamos" class="card">
+    <h2>📖 Préstamo rápido</h2>
+    <input type="text" id="codigoLibro" placeholder="Código del libro (ej: LIB001)" autocomplete="off">
+    <input type="text" id="dniSocio" placeholder="DNI del socio" autocomplete="off">
+    <button id="btnPrestar">✅ Registrar Préstamo</button>
+    <button id="btnDevolver" class="secondary">🔄 Devolver libro</button>
+</div>
+
+<!-- Lista de préstamos activos -->
+<div class="card">
+    <h2>📌 Préstamos activos</h2>
+    <div id="listaPrestamos">
+        <p style="color:gray; text-align:center">Todavía no hay préstamos</p>
+    </div>
+</div>
+
+<!-- Menú inferior simple -->
+<div class="menu">
+    <button id="btnSocios">👥 Socios</button>
+    <button id="btnLibros">📕 Libros</button>
+    <button id="btnInicio">🏠 Inicio</button>
+</div>
+
+<script>
+    // ========================
+    // DATOS DE PRUEBA (guardados en el celular)
+    // ========================
+    
+    let socios = [
+        { dni: "12345678", nombre: "María Gómez", telefono: "11 2345 6789" },
+        { dni: "87654321", nombre: "Juan Pérez", telefono: "11 9876 5432" }
+    ];
+    
+    let libros = [
+        { codigo: "LIB001", titulo: "El principito", autor: "Saint-Exupéry" },
+        { codigo: "LIB002", titulo: "Rayuela", autor: "Cortázar" }
+    ];
+    
+    let prestamos = []; // acá van los préstamos activos
+    
+    // Cargar datos guardados (si existen)
+    function cargarDatos() {
+        let sociosGuardados = localStorage.getItem("socios_mi_biblio");
+        let librosGuardados = localStorage.getItem("libros_mi_biblio");
+        let prestamosGuardados = localStorage.getItem("prestamos_mi_biblio");
+        
+        if (sociosGuardados) socios = JSON.parse(sociosGuardados);
+        if (librosGuardados) libros = JSON.parse(librosGuardados);
+        if (prestamosGuardados) prestamos = JSON.parse(prestamosGuardados);
+        
+        actualizarListaPrestamos();
+    }
+    
+    function guardarTodo() {
+        localStorage.setItem("socios_mi_biblio", JSON.stringify(socios));
+        localStorage.setItem("libros_mi_biblio", JSON.stringify(libros));
+        localStorage.setItem("prestamos_mi_biblio", JSON.stringify(prestamos));
+    }
+    
+    // Mostrar préstamos activos en pantalla
+    function actualizarListaPrestamos() {
+        let contenedor = document.getElementById("listaPrestamos");
+        if (prestamos.length === 0) {
+            contenedor.innerHTML = '<p style="color:gray; text-align:center">Sin préstamos activos 📭</p>';
+            return;
+        }
+        
+        let html = "";
+        for (let i = 0; i < prestamos.length; i++) {
+            let p = prestamos[i];
+            let libroEncontrado = libros.find(lib => lib.codigo === p.codigoLibro);
+            let socioEncontrado = socios.find(soc => soc.dni === p.dniSocio);
+            let tituloLibro = libroEncontrado ? libroEncontrado.titulo : p.codigoLibro;
+            let nombreSocio = socioEncontrado ? socioEncontrado.nombre : p.dniSocio;
+            
+            html += `
+                <div class="prestamo-item">
+                    <strong>📘 ${tituloLibro}</strong><br>
+                    👤 ${nombreSocio}<br>
+                    📅 Prestado: ${p.fechaPrestamo}<br>
+                    ⏰ Devolver: ${p.fechaDevolver}
+                </div>
+            `;
+        }
+        contenedor.innerHTML = html;
+    }
+    
+    // Función para prestar un libro
+    function registrarPrestamo() {
+        let codigo = document.getElementById("codigoLibro").value.trim();
+        let dni = document.getElementById("dniSocio").value.trim();
+        
+        if (codigo === "" || dni === "") {
+            alert("⚠️ Escaneá o escribí el código del libro y el DNI del socio");
+            return;
+        }
+        
+        // Verificar que el libro existe
+        let libroExiste = libros.find(lib => lib.codigo === codigo);
+        if (!libroExiste) {
+            alert("❌ Ese código de libro no está registrado. Primero darlo de alta.");
+            return;
+        }
+        
+        // Verificar que el socio existe
+        let socioExiste = socios.find(soc => soc.dni === dni);
+        if (!socioExiste) {
+            alert("❌ Socio no encontrado. Registralo antes.");
+            return;
+        }
+        
+        // Verificar que el libro no esté ya prestado
+        let yaPrestado = prestamos.find(p => p.codigoLibro === codigo);
+        if (yaPrestado) {
+            alert("📌 Este libro YA está prestado. Devolvelo primero.");
+            return;
+        }
+        
+        // Fechas
+        let hoy = new Date();
+        let fechaPrestamo = hoy.toLocaleDateString("es-AR");
+        let fechaDevolver = new Date(hoy);
+        fechaDevolver.setDate(hoy.getDate() + 14); // 14 días de préstamo
+        let fechaDevolverStr = fechaDevolver.toLocaleDateString("es-AR");
+        
+        prestamos.push({
+            codigoLibro: codigo,
+            dniSocio: dni,
+            fechaPrestamo: fechaPrestamo,
+            fechaDevolver: fechaDevolverStr
+        });
+        
+        guardarTodo();
+        actualizarListaPrestamos();
+        
+        // Limpiar campos
+        document.getElementById("codigoLibro").value = "";
+        document.getElementById("dniSocio").value = "";
+        
+        alert("✅ Préstamo registrado. Recordá devolver el " + fechaDevolverStr);
+    }
+    
+    // Devolver libro (el último prestado de ese código, o el primero encontrado)
+    function devolverLibro() {
+        let codigo = document.getElementById("codigoLibro").value.trim();
+        if (codigo === "") {
+            alert("Escribí o escaneá el código del libro a devolver");
+            return;
+        }
+        
+        let indice = prestamos.findIndex(p => p.codigoLibro === codigo);
+        if (indice === -1) {
+            alert("Este libro no está en préstamo o ya fue devuelto");
+            return;
+        }
+        
+        let prestamoDevuelto = prestamos[indice];
+        prestamos.splice(indice, 1);
+        guardarTodo();
+        actualizarListaPrestamos();
+        
+        alert(`📚 Libro devuelto correctamente. ¡Gracias!`);
+        document.getElementById("codigoLibro").value = "";
+    }
+    
+    // ========== Navegación simple (por ahora solo avisos) ==========
+    document.getElementById("btnSocios").onclick = () => alert("📱 En la próxima versión: alta de socios y listado");
+    document.getElementById("btnLibros").onclick = () => alert("📕 Próximamente: alta de libros y catálogo");
+    document.getElementById("btnInicio").onclick = () => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    
+    // Botones principales
+    document.getElementById("btnPrestar").onclick = registrarPrestamo;
+    document.getElementById("btnDevolver").onclick = devolverLibro;
+    
+    // Inicializar
+    cargarDatos();
+</script>
+</body>
+</html>
