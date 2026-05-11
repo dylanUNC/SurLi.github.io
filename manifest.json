@@ -1,0 +1,23 @@
+{
+  "name": "Mi Biblioteca",
+  "short_name": "Biblio Móvil",
+  "description": "SIGB para bibliotecas argentinas - Funciona sin internet y desde el celular",
+  "start_url": "/sigb-movil/",
+  "display": "standalone",
+  "theme_color": "#2c5f2d",
+  "background_color": "#f5f1eb",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
