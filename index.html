@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Biblioteca Popular - SIGB Móvil</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2c5f2d">
     <style>
         * {
             margin: 0;
@@ -97,6 +99,15 @@
             border-radius: 16px;
             margin: 8px 0;
         }
+        .badge {
+            background: #2c5f2d;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
     </style>
 </head>
 <body>
@@ -106,7 +117,18 @@
     <p>SIGB para celular - Funciona sin internet</p>
 </div>
 
-<!-- Sección de PRÉSTAMOS (la más importante) -->
+<!-- Botón para escanear DNI -->
+<div class="card">
+    <button id="btnEscanearDNI">📷 Escanear DNI (código QR)</button>
+</div>
+
+<!-- Contenedor de la cámara (oculto inicialmente) -->
+<div id="lectorQR" style="display: none; background: black; border-radius: 20px; overflow: hidden; margin-bottom: 20px;">
+    <div id="qr-reader" style="width: 100%;"></div>
+    <button id="btnCerrarCamara" style="background: #c0392b; margin: 10px;">❌ Cerrar cámara</button>
+</div>
+
+<!-- Sección de PRÉSTAMOS -->
 <div id="seccionPrestamos" class="card">
     <h2>📖 Préstamo rápido</h2>
     <input type="text" id="codigoLibro" placeholder="Código del libro (ej: LIB001)" autocomplete="off">
@@ -123,16 +145,19 @@
     </div>
 </div>
 
-<!-- Menú inferior simple -->
+<!-- Menú inferior -->
 <div class="menu">
     <button id="btnSocios">👥 Socios</button>
     <button id="btnLibros">📕 Libros</button>
     <button id="btnInicio">🏠 Inicio</button>
 </div>
 
+<!-- Librería de escaneo QR -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
+
 <script>
     // ========================
-    // DATOS DE PRUEBA (guardados en el celular)
+    // DATOS PRINCIPALES
     // ========================
     
     let socios = [
@@ -145,9 +170,12 @@
         { codigo: "LIB002", titulo: "Rayuela", autor: "Cortázar" }
     ];
     
-    let prestamos = []; // acá van los préstamos activos
+    let prestamos = [];
     
-    // Cargar datos guardados (si existen)
+    // ========================
+    // FUNCIONES DE ALMACENAMIENTO
+    // ========================
+    
     function cargarDatos() {
         let sociosGuardados = localStorage.getItem("socios_mi_biblio");
         let librosGuardados = localStorage.getItem("libros_mi_biblio");
@@ -166,7 +194,10 @@
         localStorage.setItem("prestamos_mi_biblio", JSON.stringify(prestamos));
     }
     
-    // Mostrar préstamos activos en pantalla
+    // ========================
+    // PRÉSTAMOS Y DEVOLUCIONES
+    // ========================
+    
     function actualizarListaPrestamos() {
         let contenedor = document.getElementById("listaPrestamos");
         if (prestamos.length === 0) {
@@ -194,7 +225,6 @@
         contenedor.innerHTML = html;
     }
     
-    // Función para prestar un libro
     function registrarPrestamo() {
         let codigo = document.getElementById("codigoLibro").value.trim();
         let dni = document.getElementById("dniSocio").value.trim();
@@ -204,32 +234,28 @@
             return;
         }
         
-        // Verificar que el libro existe
         let libroExiste = libros.find(lib => lib.codigo === codigo);
         if (!libroExiste) {
             alert("❌ Ese código de libro no está registrado. Primero darlo de alta.");
             return;
         }
         
-        // Verificar que el socio existe
         let socioExiste = socios.find(soc => soc.dni === dni);
         if (!socioExiste) {
             alert("❌ Socio no encontrado. Registralo antes.");
             return;
         }
         
-        // Verificar que el libro no esté ya prestado
         let yaPrestado = prestamos.find(p => p.codigoLibro === codigo);
         if (yaPrestado) {
             alert("📌 Este libro YA está prestado. Devolvelo primero.");
             return;
         }
         
-        // Fechas
         let hoy = new Date();
         let fechaPrestamo = hoy.toLocaleDateString("es-AR");
         let fechaDevolver = new Date(hoy);
-        fechaDevolver.setDate(hoy.getDate() + 14); // 14 días de préstamo
+        fechaDevolver.setDate(hoy.getDate() + 14);
         let fechaDevolverStr = fechaDevolver.toLocaleDateString("es-AR");
         
         prestamos.push({
@@ -242,14 +268,12 @@
         guardarTodo();
         actualizarListaPrestamos();
         
-        // Limpiar campos
         document.getElementById("codigoLibro").value = "";
         document.getElementById("dniSocio").value = "";
         
         alert("✅ Préstamo registrado. Recordá devolver el " + fechaDevolverStr);
     }
     
-    // Devolver libro (el último prestado de ese código, o el primero encontrado)
     function devolverLibro() {
         let codigo = document.getElementById("codigoLibro").value.trim();
         if (codigo === "") {
@@ -263,27 +287,158 @@
             return;
         }
         
-        let prestamoDevuelto = prestamos[indice];
         prestamos.splice(indice, 1);
         guardarTodo();
         actualizarListaPrestamos();
         
-        alert(`📚 Libro devuelto correctamente. ¡Gracias!`);
+        alert("📚 Libro devuelto correctamente. ¡Gracias!");
         document.getElementById("codigoLibro").value = "";
     }
     
-    // ========== Navegación simple (por ahora solo avisos) ==========
-    document.getElementById("btnSocios").onclick = () => alert("📱 En la próxima versión: alta de socios y listado");
-    document.getElementById("btnLibros").onclick = () => alert("📕 Próximamente: alta de libros y catálogo");
+    // ========================
+    // ESCANEO DE DNI ARGENTINO
+    // ========================
+    
+    let html5QrCode;
+    let escanerActivo = false;
+    
+    function iniciarEscanner() {
+        if (escanerActivo) return;
+        
+        const lectorDiv = document.getElementById("lectorQR");
+        lectorDiv.style.display = "block";
+        
+        html5QrCode = new Html5Qrcode("qr-reader");
+        
+        const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+        };
+        
+        html5QrCode.start(
+            { facingMode: "environment" },
+            config,
+            (decodedText) => {
+                procesarDNI(decodedText);
+                detenerEscanner();
+            },
+            (errorMessage) => {}
+        ).catch(err => {
+            console.error("Error al iniciar cámara:", err);
+            alert("No se pudo acceder a la cámara. Revisá los permisos.");
+            detenerEscanner();
+        });
+        
+        escanerActivo = true;
+    }
+    
+    function detenerEscanner() {
+        if (html5QrCode && html5QrCode.isScanning) {
+            html5QrCode.stop().then(() => {
+                document.getElementById("lectorQR").style.display = "none";
+                escanerActivo = false;
+            }).catch(err => console.error("Error al detener:", err));
+        }
+    }
+    
+    function procesarDNI(texto) {
+        console.log("QR escaneado:", texto);
+        
+        const partes = texto.split('@');
+        
+        if (partes.length >= 6) {
+            let dni = partes[1];
+            let apellido = partes[2];
+            let nombre = partes[3];
+            let sexo = partes[4];
+            let fechaNacimiento = partes[5];
+            
+            let socioExistente = socios.find(s => s.dni === dni);
+            if (socioExistente) {
+                alert(`⚠️ ${apellido}, ${nombre} ya está registrado como socio con DNI ${dni}`);
+                return;
+            }
+            
+            let telefono = prompt(`📱 Registrando nuevo socio:\nNombre: ${nombre}\nApellido: ${apellido}\nDNI: ${dni}\nFecha Nac: ${fechaNacimiento}\n\nIngresá el número de teléfono (opcional):`);
+            
+            let nuevoSocio = {
+                dni: dni,
+                nombre: `${nombre} ${apellido}`,
+                telefono: telefono || "",
+                fechaNacimiento: fechaNacimiento,
+                fechaRegistro: new Date().toLocaleDateString("es-AR")
+            };
+            
+            socios.push(nuevoSocio);
+            guardarTodo();
+            
+            alert(`✅ Socio registrado correctamente:\n${nombre} ${apellido}\nDNI: ${dni}`);
+            mostrarListaSocios();
+            
+        } else {
+            alert("❌ No se pudo leer el DNI correctamente. Intentá de nuevo.");
+            console.error("Formato inesperado:", partes);
+        }
+    }
+    
+    // ========================
+    // MENÚ Y NAVEGACIÓN
+    // ========================
+    
+    function mostrarListaSocios() {
+        if (socios.length === 0) {
+            alert("📭 No hay socios registrados aún.\nUsá el botón ESCANEAR DNI para agregar.");
+            return;
+        }
+        
+        let mensaje = "👥 LISTA DE SOCIOS\n\n";
+        for (let s of socios) {
+            mensaje += `📌 ${s.nombre}\n   DNI: ${s.dni} | 📞 ${s.telefono || "sin teléfono"}\n\n`;
+        }
+        alert(mensaje);
+    }
+    
+    function mostrarListaLibros() {
+        if (libros.length === 0) {
+            alert("📭 No hay libros registrados aún.\nUsá la función de alta de libros (próximamente)");
+            return;
+        }
+        
+        let mensaje = "📚 LISTA DE LIBROS\n\n";
+        for (let l of libros) {
+            mensaje += `📖 ${l.titulo}\n   Código: ${l.codigo} | Autor: ${l.autor}\n\n`;
+        }
+        alert(mensaje);
+    }
+    
+    // ========================
+    // EVENTOS Y BOTONES
+    // ========================
+    
+    document.getElementById("btnEscanearDNI").onclick = iniciarEscanner;
+    document.getElementById("btnCerrarCamara").onclick = detenerEscanner;
+    document.getElementById("btnPrestar").onclick = registrarPrestamo;
+    document.getElementById("btnDevolver").onclick = devolverLibro;
+    document.getElementById("btnSocios").onclick = mostrarListaSocios;
+    document.getElementById("btnLibros").onclick = mostrarListaLibros;
     document.getElementById("btnInicio").onclick = () => {
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
     
-    // Botones principales
-    document.getElementById("btnPrestar").onclick = registrarPrestamo;
-    document.getElementById("btnDevolver").onclick = devolverLibro;
+    // ========================
+    // SERVICE WORKER (PWA OFFLINE)
+    // ========================
     
-    // Inicializar
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('✅ Service Worker registrado', reg))
+                .catch(err => console.log('❌ Error al registrar SW', err));
+        });
+    }
+    
+    // INICIALIZAR
     cargarDatos();
 </script>
 </body>
